@@ -26,9 +26,9 @@
 
 **内置游戏 + 指令启动**
 - 游戏本体随包放在 `game/`（`minesweeper.py` + `minesweeper_plugin.py`）。
-- 另随包内置一份**便携 Python**（`game/python/`，含 tkinter/tcl），用户无需自装 Python。
+- 另随包内置一份**便携 Python**（`vendor/python/`，含 tkinter/tcl），用户无需自装 Python。
 - 用户对角色说“启动扫雷”等 → 角色调用 `@llm_tool start_minesweeper` →
-  插件用 `subprocess` 拉起 `game/python/python.exe game/minesweeper.py`（**不在宿主进程里创建 Tk**，
+  插件用 `subprocess` 拉起 `vendor/python/python.exe game/minesweeper.py`（**不在宿主进程里创建 Tk**，
   宿主的冻结运行时缺 Tcl 脚本库，直接建 Tk 会让插件进程崩溃）。
 - 事件仍走 `127.0.0.1:39001` 回环（游戏是客户端、本插件是服务端）。
 - 插件停止/重载时终止该子进程。
@@ -75,10 +75,14 @@ from plugin.sdk.plugin import (
 
 DEFAULT_PORT = 39001
 
+# 插件根目录
+PLUGIN_DIR = os.path.dirname(os.path.abspath(__file__))
 # 随包内置的游戏源码目录（minesweeper.py / minesweeper_plugin.py）
-GAME_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "game")
+GAME_DIR = os.path.join(PLUGIN_DIR, "game")
+# 随包内置的第三方依赖目录（便携 Python 等）；官方打包会随包发布，CI 的 Ruff 会跳过
+VENDOR_DIR = os.path.join(PLUGIN_DIR, "vendor")
 # 随包内置的便携 Python 与游戏脚本（用 subprocess 启动，避免在宿主进程里跑 Tk）
-PYTHON_EXE = os.path.join(GAME_DIR, "python", "python.exe")
+PYTHON_EXE = os.path.join(VENDOR_DIR, "python", "python.exe")
 GAME_SCRIPT = os.path.join(GAME_DIR, "minesweeper.py")
 
 # 对人类一方的称呼。不同猫娘可按需改成「对方」「玩家」「主人」等。
