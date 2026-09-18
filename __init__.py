@@ -2,9 +2,8 @@
 ### ！！！
 ### 注意： 该文件中的文本/注释（除了4个功能介绍的文本是我写的） 完全由ai编写，请注意辨别
 ### ！！！
-"""
 
-"""合作扫雷 (minesweeper) — 把扫雷的局面与事件转述给陪伴角色。
+合作扫雷 (minesweeper) — 把扫雷的局面与事件转述给陪伴角色。
 
 游戏侧（minesweeper_plugin.py）通过本机回环 TCP 发送一行一条 JSON；
 本插件在**后台线程**里监听端口，用本地缓存 + push_message / llm_tool 让角色知晓战况。
@@ -67,13 +66,11 @@ from collections import deque
 
 from plugin.sdk.plugin import (
     NekoPluginBase,
+    Ok,
+    lifecycle,
+    llm_tool,
     neko_plugin,
     plugin_entry,
-    llm_tool,
-    lifecycle,
-    Ok,
-    Err,
-    SdkError,
 )
 
 DEFAULT_PORT = 39001
@@ -480,8 +477,7 @@ class MinesweeperPlugin(NekoPluginBase):
             return
         now = time.monotonic()
         with self._lock:
-            if (text == self._last_summary_text
-                    and (now - self._last_summary_at) < SUMMARY_DEDUP_SECONDS):
+            if text == self._last_summary_text and (now - self._last_summary_at) < SUMMARY_DEDUP_SECONDS:
                 return
             self._last_summary_text = text
             self._last_summary_at = now
@@ -528,7 +524,9 @@ class MinesweeperPlugin(NekoPluginBase):
         # ---- 说话类 ----
         if etype == "new_game":
             return "新的一局扫雷开始了，你和人类一起排雷：%s，共 %s 颗雷。" % (
-                event.get("board", "未知棋盘"), event.get("mines", "?"))
+                event.get("board", "未知棋盘"),
+                event.get("mines", "?"),
+            )
         if etype == "ai_doubt":
             return random.choice(_DOUBT_POOL).format(cell=cell)
         if etype == "ai_unflag":
@@ -569,25 +567,31 @@ class MinesweeperPlugin(NekoPluginBase):
     def _render_loss_merged(self, hit, lose):
         who = "你自己" if hit.get("actor") == "ai" else HUMAN_LABEL
         correct = lose.get("correct", "?")
-        template = random.choice([
-            "{who}踩到雷了，本局结束，标记正确 {correct} 个雷。",
-            "这局结束了：{who}踩到雷，标记正确 {correct} 个雷。",
-        ])
+        template = random.choice(
+            [
+                "{who}踩到雷了，本局结束，标记正确 {correct} 个雷。",
+                "这局结束了：{who}踩到雷，标记正确 {correct} 个雷。",
+            ]
+        )
         return template.format(who=who, correct=correct)
 
     def _render_win_merged(self, win, rec):
         seconds = win.get("seconds", "?")
         previous = rec.get("previous")
         if previous is None:
-            template = random.choice([
-                "胜利，用时 {seconds} 秒，完成了这一局。",
-                "这一局赢了，用时 {seconds} 秒。",
-            ])
+            template = random.choice(
+                [
+                    "胜利，用时 {seconds} 秒，完成了这一局。",
+                    "这一局赢了，用时 {seconds} 秒。",
+                ]
+            )
             return template.format(seconds=seconds)
-        template = random.choice([
-            "胜利，用时 {seconds} 秒，刷新了最佳记录（原 {previous} 秒）。",
-            "这一局赢了，用时 {seconds} 秒，还刷新了最佳记录（原 {previous} 秒）。",
-        ])
+        template = random.choice(
+            [
+                "胜利，用时 {seconds} 秒，刷新了最佳记录（原 {previous} 秒）。",
+                "这一局赢了，用时 {seconds} 秒，还刷新了最佳记录（原 {previous} 秒）。",
+            ]
+        )
         return template.format(seconds=seconds, previous=previous)
 
     # ---------- push ----------
@@ -618,10 +622,7 @@ class MinesweeperPlugin(NekoPluginBase):
 
     @llm_tool(
         name="minesweeper_status",
-        description=(
-            "当yui想看当前扫雷战况时，会调用"
-            "（yui用）"
-        ),
+        description=("当yui想看当前扫雷战况时，会调用（yui用）"),
         parameters={"type": "object", "properties": {}},
     )
     async def minesweeper_status(self, **kwargs):
@@ -631,11 +632,7 @@ class MinesweeperPlugin(NekoPluginBase):
 
     @llm_tool(
         name="start_minesweeper",
-        description=(
-            "点击启动扫雷。"
-            "或者对yui说：“玩扫雷”，“开一局”，“扫雷启动！”"
-            "（（"
-        ),
+        description=("点击启动扫雷。或者对yui说：“玩扫雷”，“开一局”，“扫雷启动！”（（"),
         parameters={"type": "object", "properties": {}},
         timeout=15.0,
     )
@@ -647,10 +644,7 @@ class MinesweeperPlugin(NekoPluginBase):
         proc = self._game_proc
         if proc is not None and proc.poll() is not None:
             # 进程启动后很快退出 => 失败，带上 stderr 便于定位
-            self._game_error = (
-                self._read_stderr_tail()
-                or ("进程已退出（返回码 %s）" % proc.returncode)
-            )
+            self._game_error = self._read_stderr_tail() or ("进程已退出（返回码 %s）" % proc.returncode)
             self.logger.error("game: start failed: %s", self._game_error)
             return {
                 "output": {"started": False, "exit_code": proc.returncode},
@@ -699,8 +693,13 @@ class MinesweeperPlugin(NekoPluginBase):
         name="Bridge Status",
         description="查看桥接端口、缓存战况、最近一次事件与游戏状态。（测试用）",
         llm_result_fields=[
-            "port", "listening", "summary", "last_event",
-            "game_running", "game_pid", "game_error",
+            "port",
+            "listening",
+            "summary",
+            "last_event",
+            "game_running",
+            "game_pid",
+            "game_error",
         ],
     )
     async def bridge_status(self, **kwargs):
@@ -710,12 +709,14 @@ class MinesweeperPlugin(NekoPluginBase):
             running, pid = True, proc.pid
         else:
             running, pid = False, None
-        return Ok({
-            "port": self._port,
-            "listening": self._sock is not None,
-            "summary": self._build_summary(),
-            "last_event": self._last_event,
-            "game_running": running,
-            "game_pid": pid,
-            "game_error": self._game_error,
-        })
+        return Ok(
+            {
+                "port": self._port,
+                "listening": self._sock is not None,
+                "summary": self._build_summary(),
+                "last_event": self._last_event,
+                "game_running": running,
+                "game_pid": pid,
+                "game_error": self._game_error,
+            }
+        )
